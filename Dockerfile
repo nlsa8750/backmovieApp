@@ -1,26 +1,30 @@
-# Use OpenJDK 17
-FROM openjdk:17-jdk-slim
+# Use the official OpenJDK image to build the project
+FROM openjdk:17-jdk-slim as builder
 
-# Set working directory inside the container
+# Set the working directory
 WORKDIR /app
 
-# Copy only required files to avoid caching issues
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN chmod +x mvnw
-RUN ./mvnw dependency:resolve
+# Copy the pom.xml and dependencies
+COPY pom.xml .
+RUN ./mvnw dependency:go-offline
 
-# Copy source files
-COPY src/ src/
+# Copy the rest of the application
+COPY src ./src
 
-# Build the application
-RUN ./mvnw clean package
+# Build the Spring Boot app
+RUN ./mvnw clean package -DskipTests
 
-# Copy the built JAR file
-RUN cp target/*.jar app.jar
+# Second stage to create the final image
+FROM openjdk:17-jdk-slim
 
-# Expose the application port
+# Set the working directory for the final image
+WORKDIR /app
+
+# Copy the jar from the builder stage
+COPY --from=builder /app/target/*.jar app.jar
+
+# Expose the port your Spring Boot app runs on (default is 8080)
 EXPOSE 8080
 
-# Run the application
-CMD ["java", "-jar", "app.jar"]
+# Run the Spring Boot application
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
